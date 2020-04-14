@@ -5,6 +5,11 @@ VisualStudioVersion = 16.0.29728.190
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ParticleSystemFRNet", "ParticleSystemFRNet\ParticleSystemFRNet.csproj", "{AB8EB67A-96B1-4FA9-B181-B8A1F46CB650}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ParticleSystemFRNetDemo", "ParticleSystemFRNetDemo\ParticleSystemFRNetDemo.csproj", "{67DD0530-6D67-4981-8F42-288D37058690}"
+	ProjectSection(ProjectDependencies) = postProject
+		{AB8EB67A-96B1-4FA9-B181-B8A1F46CB650} = {AB8EB67A-96B1-4FA9-B181-B8A1F46CB650}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +20,10 @@ Global
 		{AB8EB67A-96B1-4FA9-B181-B8A1F46CB650}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AB8EB67A-96B1-4FA9-B181-B8A1F46CB650}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AB8EB67A-96B1-4FA9-B181-B8A1F46CB650}.Release|Any CPU.Build.0 = Release|Any CPU
+		{67DD0530-6D67-4981-8F42-288D37058690}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{67DD0530-6D67-4981-8F42-288D37058690}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{67DD0530-6D67-4981-8F42-288D37058690}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{67DD0530-6D67-4981-8F42-288D37058690}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

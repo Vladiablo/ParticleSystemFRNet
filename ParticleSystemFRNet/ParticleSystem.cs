@@ -13,7 +13,7 @@ using System.Drawing.Imaging;
 
 namespace ParticleSystemFRNet
 {
-    class ParticleSystem : ReportComponentBase
+    public class ParticleSystem : ReportComponentBase
     {
         #region Fields
         private int seed;
