@@ -1,10 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Windows.Forms;
-using ParticleSystemFRNet;
-using FastReport;
+﻿using FastReport;
 using FastReport.Utils;
+using ParticleSystemFRNet;
+using System;
+using System.Windows.Forms;
 
 namespace ParticleSystemFRNetDemo
 {
@@ -21,7 +19,7 @@ namespace ParticleSystemFRNetDemo
 
             RegisteredObjects.Add(typeof(ParticleSystem), "ReportPage", ParticleSystemFRNet.Properties.Resources.ParticleSystemIcon, "Particle System");
 
-            using(Report report = new Report())
+            using (Report report = new Report())
             {
                 report.Design();
             }

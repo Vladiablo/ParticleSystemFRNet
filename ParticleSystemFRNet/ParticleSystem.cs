@@ -1,18 +1,21 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.IO;
-using FastReport;
+﻿using FastReport;
 using FastReport.Utils;
+using System;
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.Drawing;
 using System.Drawing.Design;
+using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 
 namespace ParticleSystemFRNet
 {
+    public enum AvoidClippingMethod
+    {
+        LimitCoordinates = 0,
+        RandomizeCoordinates = 1
+    }
+
     public class ParticleSystem : ReportComponentBase
     {
         #region Fields
@@ -23,11 +26,13 @@ namespace ParticleSystemFRNet
         private uint maxParticleWidth;
         private uint maxParticleHeight;
         private bool keepParticleAspectRatio;
+        private bool avoidClipping;
+        private AvoidClippingMethod avoidClippingMethod;
         private float minOpacity;
         private float maxOpacity;
         private bool adjustableOpacity;
         private string dataColumn;
-        private Image image;   
+        private Image image;
 
         #endregion
 
@@ -112,7 +117,7 @@ namespace ParticleSystemFRNet
                 if (value == 0) value = 1;
                 if (value < this.minParticleWidth) value = this.minParticleWidth;
                 if (this.keepParticleAspectRatio) this.maxParticleWidth = (uint)((float)this.maxParticleWidth * ((float)value / this.maxParticleHeight));
-                this.maxParticleHeight = value;  
+                this.maxParticleHeight = value;
             }
         }
 
@@ -124,6 +129,26 @@ namespace ParticleSystemFRNet
         {
             get => this.keepParticleAspectRatio;
             set => this.keepParticleAspectRatio = value;
+        }
+
+        /// <summary>
+        /// Gets or sets value indicating that all particle must be inside bounds, else particles will be clipped.
+        /// </summary>
+        [Category("Data")]
+        public bool AvoidClipping
+        {
+            get => this.avoidClipping;
+            set => this.avoidClipping = value;
+        }
+
+        /// <summary>
+        /// Determines which of methods will be used to avoid particles clipping.
+        /// </summary>
+        [Category("Data")]
+        public AvoidClippingMethod AvoidClippingMethod
+        {
+            get => this.avoidClippingMethod;
+            set => this.avoidClippingMethod = value;
         }
 
         /// <summary>
@@ -249,6 +274,8 @@ namespace ParticleSystemFRNet
                 MaxParticleWidth = src.MaxParticleWidth;
                 MaxParticleHeight = src.MaxParticleHeight;
                 KeepParticleAspectRatio = src.KeepParticleAspectRatio;
+                AvoidClipping = src.AvoidClipping;
+                AvoidClippingMethod = src.AvoidClippingMethod;
                 MinOpacity = src.MinOpacity;
                 MaxOpacity = src.MaxOpacity;
                 AdjustableOpacity = src.AdjustableOpacity;
@@ -285,28 +312,70 @@ namespace ParticleSystemFRNet
                 }
 
                 Random random = new Random(seed);
-                int width = 0;
-                int height = 0;
+                float width = 0;
+                float height = 0;
+                float x = 0.0f;
+                float y = 0.0f;
                 float opacity = 1.0f;
 
                 for (int i = 0; i < particlesCount; i++)
                 {
+                    x = drawLeft + (float)random.NextDouble() * drawWidth;
+                    y = drawTop + (float)random.NextDouble() * drawHeight;
+
                     if (this.keepParticleAspectRatio)
                     {
                         width = random.Next((int)this.minParticleWidth, (int)this.maxParticleWidth + 1);
                         height = (int)((float)this.maxParticleHeight / ((float)maxParticleWidth / width));
                     }
-                    if(this.adjustableOpacity)
+                    else
+                    {
+                        width = random.Next((int)this.minParticleWidth, (int)this.maxParticleWidth + 1);
+                        height = random.Next((int)this.minParticleHeight, (int)this.maxParticleHeight + 1);
+                    }
+
+                    width *= e.ScaleX;
+                    height *= e.ScaleY;
+
+                    if (this.avoidClipping)
+                    {
+                        if (x + width > drawLeft + drawWidth)
+                        {
+                            switch (this.avoidClippingMethod)
+                            {
+                                case AvoidClippingMethod.LimitCoordinates:
+                                    x -= (x + width) - (drawLeft + drawWidth);
+                                    break;
+                                case AvoidClippingMethod.RandomizeCoordinates:
+                                    x = drawLeft + (float)random.NextDouble() * (drawWidth - width);
+                                    break;
+                            }
+                        }
+                        if (y + height > drawTop + drawHeight)
+                        {
+                            switch (this.avoidClippingMethod)
+                            {
+                                case AvoidClippingMethod.LimitCoordinates:
+                                    y -= (y + height) - (drawTop + drawHeight);
+                                    break;
+                                case AvoidClippingMethod.RandomizeCoordinates:
+                                    y = drawTop + (float)random.NextDouble() * (drawHeight - height);
+                                    break;
+                            }
+                        }
+                    }
+
+                    if (this.adjustableOpacity)
                     {
                         opacity = (float)random.NextDouble();
                         if (opacity < this.minOpacity) opacity = this.minOpacity;
                         else if (opacity > this.maxOpacity) opacity = this.maxOpacity;
                     }
+
                     g.DrawImage(
                         (this.adjustableOpacity) ? (SetImageOpacity(image, opacity)) : (this.image),
-                        drawLeft + (float)random.NextDouble() * drawWidth, drawTop + (float)random.NextDouble() * drawHeight,
-                        ((this.keepParticleAspectRatio) ? (width) : (random.Next((int)this.minParticleWidth, (int)this.maxParticleWidth + 1))) * e.ScaleX,
-                        ((this.keepParticleAspectRatio) ? (height) : (random.Next((int)this.minParticleHeight, (int)this.maxParticleHeight + 1))) * e.ScaleY);
+                        x, y,
+                        width, height);
                 }
 
             }
@@ -340,6 +409,10 @@ namespace ParticleSystemFRNet
                 writer.WriteInt("MaxParticleHeight", (int)MaxParticleHeight);
             if (KeepParticleAspectRatio != c.KeepParticleAspectRatio)
                 writer.WriteBool("KeepParticleAspectRatio", KeepParticleAspectRatio);
+            if (AvoidClipping != c.AvoidClipping)
+                writer.WriteBool("AvoidClipping", AvoidClipping);
+            if (AvoidClippingMethod != c.AvoidClippingMethod)
+                writer.WriteValue("AvoidClippingMethod", AvoidClippingMethod);
             if (MinOpacity != c.MinOpacity)
                 writer.WriteFloat("MinOpacity", MinOpacity);
             if (MaxOpacity != c.MaxOpacity)
@@ -433,6 +506,7 @@ namespace ParticleSystemFRNet
         /// </summary>
         public ParticleSystem()
         {
+
             this.seed = (int)DateTime.Now.ToBinary();
             this.particlesCount = 50;
             this.minParticleWidth = 16;
@@ -440,7 +514,9 @@ namespace ParticleSystemFRNet
             this.maxParticleWidth = 32;
             this.maxParticleHeight = 32;
             this.keepParticleAspectRatio = true;
-            this.minOpacity = 0.0f;
+            this.avoidClipping = true;
+            this.avoidClippingMethod = AvoidClippingMethod.RandomizeCoordinates;
+            this.minOpacity = 0.1f;
             this.maxOpacity = 1.0f;
             this.adjustableOpacity = false;
             this.dataColumn = "";
