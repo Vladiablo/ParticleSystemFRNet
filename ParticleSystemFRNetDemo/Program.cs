@@ -19,6 +19,9 @@ namespace ParticleSystemFRNetDemo
 
             RegisteredObjects.Add(typeof(ParticleSystem), "ReportPage", ParticleSystemFRNet.Properties.Resources.ParticleSystemIcon, "Particle System");
 
+            Config.DesignerSettings.ShowInTaskbar = true;
+            Config.SplashScreenEnabled = true;
+
             using (Report report = new Report())
             {
                 report.Design();

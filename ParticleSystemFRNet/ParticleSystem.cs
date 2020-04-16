@@ -33,6 +33,9 @@ namespace ParticleSystemFRNet
         private bool adjustableOpacity;
         private string dataColumn;
         private Image image;
+        private uint opacityImageCacheLength;
+        private Image[] opacityImageCache;
+        private bool opacityImageCacheReady = false;
 
         #endregion
 
@@ -40,6 +43,7 @@ namespace ParticleSystemFRNet
         /// <summary>
         /// Gets or sets seed for randomizer.
         /// </summary>
+        [DefaultValue(0)]
         [Category("Data")]
         public int Seed
         {
@@ -50,6 +54,7 @@ namespace ParticleSystemFRNet
         /// <summary>
         /// Gets or sets particles count.
         /// </summary>
+        [DefaultValue(50)]
         [Category("Data")]
         public uint ParticlesCount
         {
@@ -60,6 +65,7 @@ namespace ParticleSystemFRNet
         /// <summary>
         /// Gets or sets minimal particle width.
         /// </summary>
+        [DefaultValue(16)]
         [Category("Data")]
         public uint MinParticleWidth
         {
@@ -76,6 +82,7 @@ namespace ParticleSystemFRNet
         /// <summary>
         /// Gets or sets minimal particle height.
         /// </summary>
+        [DefaultValue(16)]
         [Category("Data")]
         public uint MinParticleHeight
         {
@@ -92,6 +99,7 @@ namespace ParticleSystemFRNet
         /// <summary>
         /// Gets or sets maximal particle width.
         /// </summary>
+        [DefaultValue(32)]
         [Category("Data")]
         public uint MaxParticleWidth
         {
@@ -108,6 +116,7 @@ namespace ParticleSystemFRNet
         /// <summary>
         /// Gets or sets maximal particle height.
         /// </summary>
+        [DefaultValue(32)]
         [Category("Data")]
         public uint MaxParticleHeight
         {
@@ -124,6 +133,7 @@ namespace ParticleSystemFRNet
         /// <summary>
         /// Gets or sets value indicating that particle must keep aspect ratio.
         /// </summary>
+        [DefaultValue(true)]
         [Category("Data")]
         public bool KeepParticleAspectRatio
         {
@@ -134,6 +144,7 @@ namespace ParticleSystemFRNet
         /// <summary>
         /// Gets or sets value indicating that all particle must be inside bounds, else particles will be clipped.
         /// </summary>
+        [DefaultValue(true)]
         [Category("Data")]
         public bool AvoidClipping
         {
@@ -144,6 +155,7 @@ namespace ParticleSystemFRNet
         /// <summary>
         /// Determines which of methods will be used to avoid particles clipping.
         /// </summary>
+        [DefaultValue(AvoidClippingMethod.RandomizeCoordinates)]
         [Category("Data")]
         public AvoidClippingMethod AvoidClippingMethod
         {
@@ -154,6 +166,7 @@ namespace ParticleSystemFRNet
         /// <summary>
         /// Gets or sets minimal opacity of particle.
         /// </summary>
+        [DefaultValue(0.1f)]
         [Category("Data")]
         public float MinOpacity
         {
@@ -164,12 +177,14 @@ namespace ParticleSystemFRNet
                 else if (value < 0.0f) value = 0.0f;
                 if (value > this.maxOpacity) value = this.maxOpacity;
                 this.minOpacity = value;
+                ClearOpacityImageCache();
             }
         }
 
         /// <summary>
         /// Gets or sets maximal opacity of particle.
         /// </summary>
+        [DefaultValue(1.0f)]
         [Category("Data")]
         public float MaxOpacity
         {
@@ -182,12 +197,14 @@ namespace ParticleSystemFRNet
                     value = 0.0f;
                 if (value < this.minOpacity) value = this.minOpacity;
                 this.maxOpacity = value;
+                ClearOpacityImageCache();
             }
         }
 
         /// <summary>
         /// Gets or sets value that allows to change particles opacity. Warning! Opacity changing is slow.
         /// </summary>
+        [DefaultValue(false)]
         [Category("Data")]
         public bool AdjustableOpacity
         {
@@ -198,12 +215,13 @@ namespace ParticleSystemFRNet
         /// <summary>
         /// Gets or sets the data column name to get particle image from.
         /// </summary>
+        [DefaultValue("")]
         [Category("Data")]
         [Editor("FastReport.TypeEditors.DataColumnEditor, FastReport", typeof(UITypeEditor))]
         public string DataColumn
         {
-            get { return dataColumn; }
-            set { dataColumn = value; }
+            get { return this.dataColumn; }
+            set { this.dataColumn = value; }
         }
 
         /// <summary>
@@ -213,7 +231,12 @@ namespace ParticleSystemFRNet
         public Image Image
         {
             get => this.image;
-            set => image = value;
+            set
+            {
+                this.image.Dispose();
+                this.image = value.Clone() as Image;
+                ClearOpacityImageCache();
+            }
         }
 
         #endregion
@@ -222,13 +245,12 @@ namespace ParticleSystemFRNet
         /// <summary>
         /// Changes opacity of the image.
         /// </summary>
-        /// <param name="image">Image</param>
         /// <param name="opacity">Opacity</param>
         /// <returns>Image with selected opacity</returns>
         /// <remarks>Caution! Slow!</remarks>
-        private Image SetImageOpacity(Image image, float opacity)
+        private Image SetImageOpacity(float opacity)
         {
-            Bitmap bmp = new Bitmap(image.Width, image.Height);
+            Bitmap bmp = new Bitmap(this.image.Width, this.image.Height);
 
             using (Graphics gfx = Graphics.FromImage(bmp))
             {
@@ -237,12 +259,37 @@ namespace ParticleSystemFRNet
 
                 matrix.Matrix33 = opacity;
                 attributes.SetColorMatrix(matrix, ColorMatrixFlag.Default, ColorAdjustType.Bitmap);
-                gfx.DrawImage(image, new Rectangle(0, 0, bmp.Width, bmp.Height), 0, 0, image.Width, image.Height, GraphicsUnit.Pixel, attributes);
+                gfx.DrawImage(this.image, new Rectangle(0, 0, bmp.Width, bmp.Height), 0, 0, this.image.Width, this.image.Height, GraphicsUnit.Pixel, attributes);
 
                 attributes.Dispose();
                 gfx.Dispose();
             }
             return bmp;
+        }
+
+        /// <summary>
+        /// Fills cache with changed opacity images. 
+        /// </summary>
+        private void PrepareOpacityImageCache()
+        {
+            float step = (this.maxOpacity - this.minOpacity) / (this.opacityImageCacheLength - 1);
+            for(int i = 0; i < opacityImageCache.Length; i++)
+            {
+                this.opacityImageCache[i] = SetImageOpacity(this.minOpacity + i * step); ;
+            }
+            this.opacityImageCacheReady = true;
+        }
+
+        /// <summary>
+        /// Clears opacity images cache.
+        /// </summary>
+        private void ClearOpacityImageCache()
+        {
+            for (int i = 0; i < this.opacityImageCacheLength; i++)
+            {
+                this.opacityImageCache[i]?.Dispose();
+            }
+            this.opacityImageCacheReady = false;
         }
 
         #endregion
@@ -252,7 +299,10 @@ namespace ParticleSystemFRNet
         protected override void Dispose(bool disposing)
         {
             if (disposing)
+            { 
+                ClearOpacityImageCache();
                 Image.Dispose();
+            }
             base.Dispose(disposing);
         }
 
@@ -280,7 +330,8 @@ namespace ParticleSystemFRNet
                 MaxOpacity = src.MaxOpacity;
                 AdjustableOpacity = src.AdjustableOpacity;
                 DataColumn = src.DataColumn;
-                Image = src.Image;
+                Image.Dispose();
+                Image = src.Image.Clone() as Image;
             }
         }
 
@@ -312,11 +363,11 @@ namespace ParticleSystemFRNet
                 }
 
                 Random random = new Random(seed);
+                Random opacityRandom = (this.adjustableOpacity) ? (new Random(this.seed)) : (null);
                 float width = 0;
                 float height = 0;
                 float x = 0.0f;
                 float y = 0.0f;
-                float opacity = 1.0f;
 
                 for (int i = 0; i < particlesCount; i++)
                 {
@@ -365,15 +416,11 @@ namespace ParticleSystemFRNet
                         }
                     }
 
-                    if (this.adjustableOpacity)
-                    {
-                        opacity = (float)random.NextDouble();
-                        if (opacity < this.minOpacity) opacity = this.minOpacity;
-                        else if (opacity > this.maxOpacity) opacity = this.maxOpacity;
-                    }
-
+                    if (this.adjustableOpacity && !opacityImageCacheReady)
+                        PrepareOpacityImageCache();
+     
                     g.DrawImage(
-                        (this.adjustableOpacity) ? (SetImageOpacity(image, opacity)) : (this.image),
+                        (this.adjustableOpacity) ? (this.opacityImageCache[opacityRandom.Next(0, (int)this.opacityImageCacheLength)]) : (this.image),
                         x, y,
                         width, height);
                 }
@@ -516,11 +563,13 @@ namespace ParticleSystemFRNet
             this.keepParticleAspectRatio = true;
             this.avoidClipping = true;
             this.avoidClippingMethod = AvoidClippingMethod.RandomizeCoordinates;
+            this.opacityImageCacheLength = 10;
+            this.opacityImageCache = new Image[this.opacityImageCacheLength];
             this.minOpacity = 0.1f;
             this.maxOpacity = 1.0f;
-            this.adjustableOpacity = false;
+            this.adjustableOpacity = true;
             this.dataColumn = "";
-            this.image = Properties.Resources.ParticleSystemIcon;
+            this.image = Properties.Resources.ParticleSystemIcon.Clone() as Image;
         }
     }
 }
