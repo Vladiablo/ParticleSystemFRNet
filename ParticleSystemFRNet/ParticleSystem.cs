@@ -275,7 +275,7 @@ namespace ParticleSystemFRNet
             float step = (this.maxOpacity - this.minOpacity) / (this.opacityImageCacheLength - 1);
             for(int i = 0; i < opacityImageCache.Length; i++)
             {
-                this.opacityImageCache[i] = SetImageOpacity(this.minOpacity + i * step); ;
+                this.opacityImageCache[i] = SetImageOpacity(this.minOpacity + i * step);
             }
             this.opacityImageCacheReady = true;
         }
@@ -504,11 +504,11 @@ namespace ParticleSystemFRNet
             object data = Report.GetColumnValueNullable(DataColumn);
             if (!String.IsNullOrEmpty(DataColumn))
             {
-                Image = null;
+                Image.Dispose();
 
                 if (data is Image)
                 {
-                    Image = data as Image;
+                    Image = (data as Image).Clone() as Image;
                 }
             }
         }
@@ -553,7 +553,6 @@ namespace ParticleSystemFRNet
         /// </summary>
         public ParticleSystem()
         {
-
             this.seed = (int)DateTime.Now.ToBinary();
             this.particlesCount = 50;
             this.minParticleWidth = 16;
