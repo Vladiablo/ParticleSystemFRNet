@@ -7,6 +7,8 @@ using System.Drawing;
 using System.Drawing.Design;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using System.Threading;
+using System.Windows.Forms;
 
 namespace ParticleSystemFRNet
 {
@@ -36,10 +38,33 @@ namespace ParticleSystemFRNet
         private uint opacityImageCacheLength;
         private Image[] opacityImageCache;
         private bool opacityImageCacheReady = false;
+        private ParticleEngine particleEngine;
 
         #endregion
 
         #region Properties
+        /// <inheritdoc/>
+        public override float Width
+        { 
+            get => base.Width;
+            set
+            {
+                base.Width = value;
+                this.FillEngine();
+            }
+        }
+
+        /// <inheritdoc/>
+        public override float Height
+        {
+            get => base.Height;
+            set
+            {
+                base.Height = value;
+                this.FillEngine();
+            }
+        }
+
         /// <summary>
         /// Gets or sets seed for randomizer.
         /// </summary>
@@ -48,7 +73,11 @@ namespace ParticleSystemFRNet
         public int Seed
         {
             get => this.seed;
-            set => this.seed = value;
+            set
+            {
+                this.seed = value;
+                this.FillEngine();
+            }
         }
 
         /// <summary>
@@ -59,7 +88,11 @@ namespace ParticleSystemFRNet
         public uint ParticlesCount
         {
             get => this.particlesCount;
-            set => this.particlesCount = value;
+            set
+            {
+                this.particlesCount = value;
+                this.FillEngine();
+            }
         }
 
         /// <summary>
@@ -76,6 +109,7 @@ namespace ParticleSystemFRNet
                 if (value > this.maxParticleWidth) value = this.maxParticleWidth;
                 if (this.keepParticleAspectRatio) this.minParticleHeight = (uint)((float)this.minParticleHeight * ((float)value / this.minParticleWidth));
                 this.minParticleWidth = value;
+                this.FillEngine();
             }
         }
 
@@ -93,6 +127,7 @@ namespace ParticleSystemFRNet
                 if (value > this.maxParticleHeight) value = this.maxParticleHeight;
                 if (this.keepParticleAspectRatio) this.minParticleWidth = (uint)((float)this.minParticleWidth * ((float)value / this.minParticleHeight));
                 this.minParticleHeight = value;
+                this.FillEngine();
             }
         }
 
@@ -110,6 +145,7 @@ namespace ParticleSystemFRNet
                 if (value < this.minParticleWidth) value = this.minParticleWidth;
                 if (this.keepParticleAspectRatio) this.maxParticleHeight = (uint)((float)this.maxParticleHeight * ((float)value / this.maxParticleWidth));
                 this.maxParticleWidth = value;
+                this.FillEngine();
             }
         }
 
@@ -127,6 +163,7 @@ namespace ParticleSystemFRNet
                 if (value < this.minParticleWidth) value = this.minParticleWidth;
                 if (this.keepParticleAspectRatio) this.maxParticleWidth = (uint)((float)this.maxParticleWidth * ((float)value / this.maxParticleHeight));
                 this.maxParticleHeight = value;
+                this.FillEngine();
             }
         }
 
@@ -138,7 +175,11 @@ namespace ParticleSystemFRNet
         public bool KeepParticleAspectRatio
         {
             get => this.keepParticleAspectRatio;
-            set => this.keepParticleAspectRatio = value;
+            set 
+            {
+                this.keepParticleAspectRatio = value;
+                this.FillEngine();
+            }
         }
 
         /// <summary>
@@ -149,7 +190,11 @@ namespace ParticleSystemFRNet
         public bool AvoidClipping
         {
             get => this.avoidClipping;
-            set => this.avoidClipping = value;
+            set
+            {
+                this.avoidClipping = value;
+                this.FillEngine();
+            }
         }
 
         /// <summary>
@@ -160,7 +205,11 @@ namespace ParticleSystemFRNet
         public AvoidClippingMethod AvoidClippingMethod
         {
             get => this.avoidClippingMethod;
-            set => this.avoidClippingMethod = value;
+            set
+            {
+                this.avoidClippingMethod = value;
+                this.FillEngine();
+            }
         }
 
         /// <summary>
@@ -178,6 +227,7 @@ namespace ParticleSystemFRNet
                 if (value > this.maxOpacity) value = this.maxOpacity;
                 this.minOpacity = value;
                 ClearOpacityImageCache();
+                this.FillEngine();
             }
         }
 
@@ -198,6 +248,7 @@ namespace ParticleSystemFRNet
                 if (value < this.minOpacity) value = this.minOpacity;
                 this.maxOpacity = value;
                 ClearOpacityImageCache();
+                this.FillEngine();
             }
         }
 
@@ -209,7 +260,11 @@ namespace ParticleSystemFRNet
         public bool AdjustableOpacity
         {
             get => this.adjustableOpacity;
-            set => this.adjustableOpacity = value;
+            set
+            {
+                this.adjustableOpacity = value;
+                this.FillEngine();
+            }
         }
 
         /// <summary>
@@ -236,7 +291,14 @@ namespace ParticleSystemFRNet
                 this.image.Dispose();
                 this.image = value.Clone() as Image;
                 ClearOpacityImageCache();
+                this.FillEngine();
             }
+        }
+
+        [Category("Data")]
+        public ParticleEngine ParticleEngine
+        {
+            get => this.particleEngine;
         }
 
         #endregion
@@ -292,6 +354,75 @@ namespace ParticleSystemFRNet
             this.opacityImageCacheReady = false;
         }
 
+        private void FillEngine()
+        {
+            this.particleEngine.Particles.Clear();
+
+            if (Image == null)
+                Image = Properties.Resources.ParticleSystemIcon;
+
+            float drawLeft = AbsLeft;
+            float drawTop = AbsTop;
+            float drawWidth = Width;
+            float drawHeight = Height;
+            Random random = new Random(seed);
+            Random opacityRandom = (this.adjustableOpacity) ? (new Random(this.seed)) : (null);
+            float width = 0;
+            float height = 0;
+            float x = 0.0f;
+            float y = 0.0f;
+
+            for (int i = 0; i < particlesCount; i++)
+            {
+                x = /*drawLeft*/ + (float)random.NextDouble() * (drawWidth);
+                y = /*drawTop*/ + (float)random.NextDouble() * (drawHeight);
+
+                if (this.keepParticleAspectRatio)
+                {
+                    width = random.Next((int)this.minParticleWidth, (int)this.maxParticleWidth + 1);
+                    height = (int)((float)this.maxParticleHeight / ((float)maxParticleWidth / width));
+                }
+                else
+                {
+                    width = random.Next((int)this.minParticleWidth, (int)this.maxParticleWidth + 1);
+                    height = random.Next((int)this.minParticleHeight, (int)this.maxParticleHeight + 1);
+                }
+
+                if (this.avoidClipping)
+                {
+                    if (x + width > /*drawLeft + */drawWidth)
+                    {
+                        switch (this.avoidClippingMethod)
+                        {
+                            case AvoidClippingMethod.LimitCoordinates:
+                                x -= (x + width) - (/*drawLeft + */drawWidth);
+                                break;
+                            case AvoidClippingMethod.RandomizeCoordinates:
+                                x = /*drawLeft + */(float)random.NextDouble() * (drawWidth - width);
+                                break;
+                        }
+                    }
+                    if (y + height > /*drawTop + */drawHeight)
+                    {
+                        switch (this.avoidClippingMethod)
+                        {
+                            case AvoidClippingMethod.LimitCoordinates:
+                                y -= (y + height) - (/*drawTop + */drawHeight);
+                                break;
+                            case AvoidClippingMethod.RandomizeCoordinates:
+                                y = /*drawTop + */(float)random.NextDouble() * (drawHeight - height);
+                                break;
+                        }
+                    }
+                }
+
+                if (this.adjustableOpacity && !opacityImageCacheReady)
+                    PrepareOpacityImageCache();
+
+                this.particleEngine.Add(new Particle(this.particleEngine, x, y, (float)random.NextDouble(), (float)random.NextDouble(), width, height, (this.adjustableOpacity) ? (this.opacityImageCache[opacityRandom.Next(0, (int)this.opacityImageCacheLength)]) : (this.image)));
+            }
+        }
+
         #endregion
 
         #region Protected Methods
@@ -340,97 +471,117 @@ namespace ParticleSystemFRNet
         {
             base.Draw(e);
 
-            Graphics g = e.Graphics;
-            if (Image == null)
-                Image = Properties.Resources.ParticleSystemIcon;
 
-            float drawLeft = AbsLeft * e.ScaleX;
-            float drawTop = AbsTop * e.ScaleY;
-            float drawWidth = Width * e.ScaleX;
-            float drawHeight = Height * e.ScaleY;
 
-            RectangleF drawRect = new RectangleF(drawLeft, drawTop, drawWidth, drawHeight);
+            //Graphics g = e.Graphics;
+            //if (Image == null)
+            //    Image = Properties.Resources.ParticleSystemIcon;
 
-            GraphicsState state = g.Save();
-            try
-            {
-                g.SetClip(drawRect);
-                Report report = Report;
-                if (report != null && report.SmoothGraphics)
-                {
-                    g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                    g.SmoothingMode = SmoothingMode.AntiAlias;
-                }
+            //float drawLeft = AbsLeft * e.ScaleX;
+            //float drawTop = AbsTop * e.ScaleY;
+            //float drawWidth = Width * e.ScaleX;
+            //float drawHeight = Height * e.ScaleY;
 
-                Random random = new Random(seed);
-                Random opacityRandom = (this.adjustableOpacity) ? (new Random(this.seed)) : (null);
-                float width = 0;
-                float height = 0;
-                float x = 0.0f;
-                float y = 0.0f;
+            //RectangleF drawRect = new RectangleF(drawLeft, drawTop, drawWidth, drawHeight);
+            //GraphicsState state = g.Save();
+            //try
+            //{
+            //    g.SetClip(drawRect);
+            //    Report report = Report;
+            //    if (report != null && report.SmoothGraphics)
+            //    {
+            //        g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            //        g.SmoothingMode = SmoothingMode.AntiAlias;
+            //    }
 
-                for (int i = 0; i < particlesCount; i++)
-                {
-                    x = drawLeft + (float)random.NextDouble() * drawWidth;
-                    y = drawTop + (float)random.NextDouble() * drawHeight;
+            //    Random random = new Random(seed);
+            //    Random opacityRandom = (this.adjustableOpacity) ? (new Random(this.seed)) : (null);
+            //    float width = 0;
+            //    float height = 0;
+            //    float x = 0.0f;
+            //    float y = 0.0f;
 
-                    if (this.keepParticleAspectRatio)
-                    {
-                        width = random.Next((int)this.minParticleWidth, (int)this.maxParticleWidth + 1);
-                        height = (int)((float)this.maxParticleHeight / ((float)maxParticleWidth / width));
-                    }
-                    else
-                    {
-                        width = random.Next((int)this.minParticleWidth, (int)this.maxParticleWidth + 1);
-                        height = random.Next((int)this.minParticleHeight, (int)this.maxParticleHeight + 1);
-                    }
+            //    for (int i = 0; i < particlesCount; i++)
+            //    {
+            //        x = drawLeft + (float)random.NextDouble() * drawWidth;
+            //        y = drawTop + (float)random.NextDouble() * drawHeight;
 
-                    width *= e.ScaleX;
-                    height *= e.ScaleY;
+            //        if (this.keepParticleAspectRatio)
+            //        {
+            //            width = random.Next((int)this.minParticleWidth, (int)this.maxParticleWidth + 1);
+            //            height = (int)((float)this.maxParticleHeight / ((float)maxParticleWidth / width));
+            //        }
+            //        else
+            //        {
+            //            width = random.Next((int)this.minParticleWidth, (int)this.maxParticleWidth + 1);
+            //            height = random.Next((int)this.minParticleHeight, (int)this.maxParticleHeight + 1);
+            //        }
 
-                    if (this.avoidClipping)
-                    {
-                        if (x + width > drawLeft + drawWidth)
-                        {
-                            switch (this.avoidClippingMethod)
-                            {
-                                case AvoidClippingMethod.LimitCoordinates:
-                                    x -= (x + width) - (drawLeft + drawWidth);
-                                    break;
-                                case AvoidClippingMethod.RandomizeCoordinates:
-                                    x = drawLeft + (float)random.NextDouble() * (drawWidth - width);
-                                    break;
-                            }
-                        }
-                        if (y + height > drawTop + drawHeight)
-                        {
-                            switch (this.avoidClippingMethod)
-                            {
-                                case AvoidClippingMethod.LimitCoordinates:
-                                    y -= (y + height) - (drawTop + drawHeight);
-                                    break;
-                                case AvoidClippingMethod.RandomizeCoordinates:
-                                    y = drawTop + (float)random.NextDouble() * (drawHeight - height);
-                                    break;
-                            }
-                        }
-                    }
+            //        width *= e.ScaleX;
+            //        height *= e.ScaleY;
 
-                    if (this.adjustableOpacity && !opacityImageCacheReady)
-                        PrepareOpacityImageCache();
-     
-                    g.DrawImage(
-                        (this.adjustableOpacity) ? (this.opacityImageCache[opacityRandom.Next(0, (int)this.opacityImageCacheLength)]) : (this.image),
-                        x, y,
-                        width, height);
-                }
+            //        if (this.avoidClipping)
+            //        {
+            //            if (x + width > drawLeft + drawWidth)
+            //            {
+            //                switch (this.avoidClippingMethod)
+            //                {
+            //                    case AvoidClippingMethod.LimitCoordinates:
+            //                        x -= (x + width) - (drawLeft + drawWidth);
+            //                        break;
+            //                    case AvoidClippingMethod.RandomizeCoordinates:
+            //                        x = drawLeft + (float)random.NextDouble() * (drawWidth - width);
+            //                        break;
+            //                }
+            //            }
+            //            if (y + height > drawTop + drawHeight)
+            //            {
+            //                switch (this.avoidClippingMethod)
+            //                {
+            //                    case AvoidClippingMethod.LimitCoordinates:
+            //                        y -= (y + height) - (drawTop + drawHeight);
+            //                        break;
+            //                    case AvoidClippingMethod.RandomizeCoordinates:
+            //                        y = drawTop + (float)random.NextDouble() * (drawHeight - height);
+            //                        break;
+            //                }
+            //            }
+            //        }
 
-            }
-            finally
-            {
-                g.Restore(state);
-            }
+            //        if (this.adjustableOpacity && !opacityImageCacheReady)
+            //            PrepareOpacityImageCache();
 
+                    
+            //        //g.DrawImage(
+            //        //    (this.adjustableOpacity) ? (this.opacityImageCache[opacityRandom.Next(0, (int)this.opacityImageCacheLength)]) : (this.image),
+            //        //    x, y,
+            //        //    width, height);
+                        
+            //    }
+
+            //}
+            //finally
+            //{
+            //    g.Restore(state);
+            //}
+
+            //new Thread(() =>
+            //{
+            //    this.busy = true;
+            //    ProgressBar progressBar = new ProgressBar();
+            //    progressBar.Location = new Point((int)(AbsLeft * e.ScaleX), (int)(AbsTop * e.ScaleY));
+            //    progressBar.Width = (int)(Width * e.ScaleX);
+            //    progressBar.Height = 32;
+            //    progressBar.Visible = true;
+            //    for (int i = 0; i < Updates; i++)
+            //    { 
+            //        pe.Update();
+            //        progressBar.Value = (int)((double)(i + 1) / Updates * 100);
+            //    }
+            //    this.busy = false;
+            //}).Start();
+
+            particleEngine.Draw(e);
             Border.Draw(e, new RectangleF(AbsLeft, AbsTop, Width, Height));
             DrawMarkers(e);
             DrawDesign(e);
@@ -569,6 +720,7 @@ namespace ParticleSystemFRNet
             this.adjustableOpacity = true;
             this.dataColumn = "";
             this.image = Properties.Resources.ParticleSystemIcon.Clone() as Image;
+            this.particleEngine = new ParticleEngine(this);
         }
     }
 }
