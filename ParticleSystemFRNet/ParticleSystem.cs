@@ -36,6 +36,7 @@ namespace ParticleSystemFRNet
         private uint opacityImageCacheLength;
         private Image[] opacityImageCache;
         private bool opacityImageCacheReady = false;
+        private PolyLineObject polyLineObject = null;
 
         #endregion
 
@@ -239,6 +240,24 @@ namespace ParticleSystemFRNet
             }
         }
 
+        /// <summary>
+        /// Gets or sets polygon or polyline for drawing particles in.
+        /// </summary>
+        [Category("Data")]
+        [DefaultValue(null)]
+        [TypeConverter(typeof(FastReport.TypeConverters.ComponentRefConverter))]
+        [Editor("FastReport.TypeEditors.ReportComponentRefEditor, FastReport", typeof(UITypeEditor))]
+        public PolyLineObject PolyLineObject
+        {
+            get => this.polyLineObject;
+            set
+            {
+                this.polyLineObject = value;
+                if(this.polyLineObject != null) 
+                    this.polyLineObject.Disposed += (sender, e) => { this.polyLineObject = null; };
+            }
+        }
+
         #endregion
 
         #region Private Methods
@@ -332,6 +351,7 @@ namespace ParticleSystemFRNet
                 DataColumn = src.DataColumn;
                 Image.Dispose();
                 Image = src.Image.Clone() as Image;
+                PolyLineObject = src.PolyLineObject;
             }
         }
 
@@ -343,18 +363,42 @@ namespace ParticleSystemFRNet
             Graphics g = e.Graphics;
             if (Image == null)
                 Image = Properties.Resources.ParticleSystemIcon;
+            
+            float drawLeft = 0.0f;
+            float drawTop = 0.0f;
+            float drawWidth = 0.0f;
+            float drawHeight = 0.0f;
+            GraphicsPath path = null;
 
-            float drawLeft = AbsLeft * e.ScaleX;
-            float drawTop = AbsTop * e.ScaleY;
-            float drawWidth = Width * e.ScaleX;
-            float drawHeight = Height * e.ScaleY;
-
+            if (this.polyLineObject == null)
+            {
+                drawLeft = AbsLeft * e.ScaleX;
+                drawTop = AbsTop * e.ScaleY;
+                drawWidth = Width * e.ScaleX;
+                drawHeight = Height * e.ScaleY;
+            }
+            else if(this.polyLineObject != null)
+            {
+                drawLeft = this.polyLineObject.AbsLeft * e.ScaleX;
+                drawTop = this.polyLineObject.AbsTop * e.ScaleY;
+                drawWidth = this.polyLineObject.Width * e.ScaleX;
+                drawHeight = this.polyLineObject.Height * e.ScaleY;
+                path = this.polyLineObject.GetPath(new Pen(Color.Black), this.polyLineObject.AbsLeft, this.polyLineObject.AbsTop, this.polyLineObject.AbsLeft + this.polyLineObject.Width, this.polyLineObject.AbsTop + this.polyLineObject.Height, e.ScaleX, e.ScaleY);
+            }
+            //if (this.polyLineObject is PolygonObject)
+            //{
+            //    path = this.polyLineObject.GetPath(new Pen(Color.Black), this.polyLineObject.AbsLeft, this.polyLineObject.AbsTop, this.polyLineObject.AbsLeft + this.polyLineObject.Width, this.polyLineObject.AbsTop + this.polyLineObject.Height, e.ScaleX, e.ScaleY);
+            //}
             RectangleF drawRect = new RectangleF(drawLeft, drawTop, drawWidth, drawHeight);
 
             GraphicsState state = g.Save();
             try
-            {
-                g.SetClip(drawRect);
+            {     
+                if(this.polyLineObject == null)
+                    g.SetClip(drawRect);
+                else if (this.polyLineObject is PolygonObject)
+                    g.SetClip(path);
+
                 Report report = Report;
                 if (report != null && report.SmoothGraphics)
                 {
@@ -369,11 +413,10 @@ namespace ParticleSystemFRNet
                 float x = 0.0f;
                 float y = 0.0f;
 
+                PointF[] points = (this.polyLineObject is PolyLineObject) ? (path.PathPoints) : (null);
                 for (int i = 0; i < particlesCount; i++)
                 {
-                    x = drawLeft + (float)random.NextDouble() * drawWidth;
-                    y = drawTop + (float)random.NextDouble() * drawHeight;
-
+                    
                     if (this.keepParticleAspectRatio)
                     {
                         width = random.Next((int)this.minParticleWidth, (int)this.maxParticleWidth + 1);
@@ -388,7 +431,20 @@ namespace ParticleSystemFRNet
                     width *= e.ScaleX;
                     height *= e.ScaleY;
 
-                    if (this.avoidClipping)
+                    if ((this.polyLineObject != null) && !(this.polyLineObject is PolygonObject))
+                    {
+                        int n = random.Next(0, points.Length - 1);
+                        double pos = random.NextDouble();
+                        x = (points[n].X + (float)(pos * (points[n + 1].X - points[n].X))) - width / 2;
+                        y = (points[n].Y + (float)(pos * (points[n + 1].Y - points[n].Y))) - height / 2;
+                    }
+                    else
+                    {
+                        x = drawLeft + (float)random.NextDouble() * drawWidth;
+                        y = drawTop + (float)random.NextDouble() * drawHeight;
+                    }
+
+                    if (this.avoidClipping && !(this.polyLineObject is PolyLineObject))
                     {
                         if (x + width > drawLeft + drawWidth)
                         {
@@ -402,6 +458,7 @@ namespace ParticleSystemFRNet
                                     break;
                             }
                         }
+
                         if (y + height > drawTop + drawHeight)
                         {
                             switch (this.avoidClippingMethod)
@@ -414,6 +471,7 @@ namespace ParticleSystemFRNet
                                     break;
                             }
                         }
+
                     }
 
                     if (this.adjustableOpacity && !opacityImageCacheReady)
@@ -470,6 +528,8 @@ namespace ParticleSystemFRNet
                 writer.WriteStr("DataColumn", DataColumn);
             if (Image != c.Image)
                 writer.WriteValue("Image", Image);
+            if (PolyLineObject != c.PolyLineObject)
+                writer.WriteRef("PolyLineObject", PolyLineObject);
         }
 
         ///<inheritdoc/>
