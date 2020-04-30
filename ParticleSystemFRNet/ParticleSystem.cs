@@ -7,6 +7,7 @@ using System.Drawing;
 using System.Drawing.Design;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using static FastReport.PolyLineObject;
 
 namespace ParticleSystemFRNet
 {
@@ -14,6 +15,12 @@ namespace ParticleSystemFRNet
     {
         LimitCoordinates = 0,
         RandomizeCoordinates = 1
+    }
+
+    public enum PolygonMode
+    {
+        InsidePolygon = 0,
+        OutsidePolygon = 1
     }
 
     public class ParticleSystem : ReportComponentBase
@@ -37,6 +44,7 @@ namespace ParticleSystemFRNet
         private Image[] opacityImageCache;
         private bool opacityImageCacheReady = false;
         private PolyLineObject polyLineObject = null;
+        private PolygonMode polygonMode;
 
         #endregion
 
@@ -253,9 +261,22 @@ namespace ParticleSystemFRNet
             set
             {
                 this.polyLineObject = value;
-                if(this.polyLineObject != null) 
+                if (this.polyLineObject != null)
+                {
                     this.polyLineObject.Disposed += (sender, e) => { this.polyLineObject = null; };
+                }
             }
+        }
+
+        /// <summary>
+        /// Determines how particles will spread in polygon object.
+        /// </summary>
+        [DefaultValue(PolygonMode.InsidePolygon)]
+        [Category("Data")]
+        public PolygonMode PolygonMode
+        {
+            get => this.polygonMode;
+            set => this.polygonMode = value;
         }
 
         #endregion
@@ -352,6 +373,7 @@ namespace ParticleSystemFRNet
                 Image.Dispose();
                 Image = src.Image.Clone() as Image;
                 PolyLineObject = src.PolyLineObject;
+                PolygonMode = src.PolygonMode;
             }
         }
 
@@ -385,10 +407,7 @@ namespace ParticleSystemFRNet
                 drawHeight = this.polyLineObject.Height * e.ScaleY;
                 path = this.polyLineObject.GetPath(new Pen(Color.Black), this.polyLineObject.AbsLeft, this.polyLineObject.AbsTop, this.polyLineObject.AbsLeft + this.polyLineObject.Width, this.polyLineObject.AbsTop + this.polyLineObject.Height, e.ScaleX, e.ScaleY);
             }
-            //if (this.polyLineObject is PolygonObject)
-            //{
-            //    path = this.polyLineObject.GetPath(new Pen(Color.Black), this.polyLineObject.AbsLeft, this.polyLineObject.AbsTop, this.polyLineObject.AbsLeft + this.polyLineObject.Width, this.polyLineObject.AbsTop + this.polyLineObject.Height, e.ScaleX, e.ScaleY);
-            //}
+
             RectangleF drawRect = new RectangleF(drawLeft, drawTop, drawWidth, drawHeight);
 
             GraphicsState state = g.Save();
@@ -396,8 +415,6 @@ namespace ParticleSystemFRNet
             {     
                 if(this.polyLineObject == null)
                     g.SetClip(drawRect);
-                else if (this.polyLineObject is PolygonObject)
-                    g.SetClip(path);
 
                 Report report = Report;
                 if (report != null && report.SmoothGraphics)
@@ -414,6 +431,9 @@ namespace ParticleSystemFRNet
                 float y = 0.0f;
 
                 PointF[] points = (this.polyLineObject is PolyLineObject) ? (path.PathPoints) : (null);
+                PolyPointCollection polyPoints = (this.polyLineObject is PolyLineObject) ? (polyLineObject.Points) : (null);
+                PointF absPolyLineZero = (this.polyLineObject is PolyLineObject && polyPoints.Count > 0) ? (new PointF(points[0].X / e.ScaleX- polyPoints[0].X, points[0].Y / e.ScaleY - polyPoints[0].Y)) : (new PointF(0.0f, 0.0f));
+
                 for (int i = 0; i < particlesCount; i++)
                 {
                     
@@ -429,22 +449,98 @@ namespace ParticleSystemFRNet
                     }
 
                     width *= e.ScaleX;
-                    height *= e.ScaleY;
+                    height *= e.ScaleY; 
 
-                    if ((this.polyLineObject != null) && !(this.polyLineObject is PolygonObject))
+                    if ((this.polyLineObject != null) && !(this.polyLineObject is PolygonObject) && polyPoints.Count > 0)
                     {
-                        int n = random.Next(0, points.Length - 1);
+                        int n = random.Next(1, polyPoints.Count);
                         double pos = random.NextDouble();
-                        x = (points[n].X + (float)(pos * (points[n + 1].X - points[n].X))) - width / 2;
-                        y = (points[n].Y + (float)(pos * (points[n + 1].Y - points[n].Y))) - height / 2;
+
+                        if (polyPoints[n - 1].RightCurve != null || polyPoints[n].LeftCurve != null)
+                        {
+                            PointF p1 = points[0], p2 = points[0], p3 = points[0], p4 = points[0];
+                            if (polyPoints[n].LeftCurve != null)
+                            {
+                                p1 = new PointF(polyPoints[n - 1].X, polyPoints[n - 1].Y);
+                                p4 = new PointF(polyPoints[n].X, polyPoints[n].Y);
+                                if (polyPoints[n - 1].RightCurve != null)
+                                    p2 = new PointF(p1.X + polyPoints[n - 1].RightCurve.X, p1.Y + polyPoints[n - 1].RightCurve.Y);
+                                else
+                                    p2 = new PointF(p1.X + (p4.X - p1.X) * 0.333f, p1.Y + (p4.Y - p1.Y) * 0.333f);
+                                p3 = new PointF(p4.X + polyPoints[n].LeftCurve.X, p4.Y + polyPoints[n].LeftCurve.Y);  
+                            }
+                            else if (polyPoints[n - 1].RightCurve != null)
+                            {
+                                p1 = new PointF(polyPoints[n - 1].X, polyPoints[n - 1].Y);
+                                p2 = new PointF(p1.X + polyPoints[n - 1].RightCurve.X, p1.Y + polyPoints[n - 1].RightCurve.Y);
+                                p4 = new PointF(polyPoints[n].X, polyPoints[n].Y);
+                                if(polyPoints[n].LeftCurve != null)
+                                    p3 = new PointF(p4.X + polyPoints[n].LeftCurve.X, p4.Y + polyPoints[n].LeftCurve.Y);
+                                else
+                                    p3 = new PointF(p4.X + (p1.X - p4.X) * 0.333f, p4.Y + (p1.Y - p4.Y) * 0.333f);
+                            }
+
+
+
+                            float x1 = p1.X + (float)(pos * (p2.X - p1.X));
+                            float y1 = p1.Y + (float)(pos * (p2.Y - p1.Y));
+
+                            float x2 = p2.X + (float)(pos * (p3.X - p2.X));
+                            float y2 = p2.Y + (float)(pos * (p3.Y - p2.Y));
+
+                            float x3 = p3.X + (float)(pos * (p4.X - p3.X));
+                            float y3 = p3.Y + (float)(pos * (p4.Y - p3.Y));
+
+                            float x21 = x1 + (float)(pos * (x2 - x1));
+                            float y21 = y1 + (float)(pos * (y2 - y1));
+
+                            float x22 = x2 + (float)(pos * (x3 - x2));
+                            float y22 = y2 + (float)(pos * (y3 - y2));
+
+                            x = x21 + (float)(pos * (x22 - x21));
+                            y = y21 + (float)(pos * (y22 - y21));
+                        }
+                        else
+                        {
+                            x = (polyPoints[n - 1].X + (float)(pos * (polyPoints[n].X - polyPoints[n - 1].X)));
+                            y = (polyPoints[n - 1].Y + (float)(pos * (polyPoints[n].Y - polyPoints[n - 1].Y)));
+                        }
+
+                        x = (absPolyLineZero.X + x) * e.ScaleX - width / 2;
+                        y = (absPolyLineZero.Y + y) * e.ScaleY - height / 2;
                     }
                     else
                     {
                         x = drawLeft + (float)random.NextDouble() * drawWidth;
                         y = drawTop + (float)random.NextDouble() * drawHeight;
+                        if (this.polyLineObject is PolygonObject)
+                        {
+                            if (drawWidth > width && drawHeight > height)
+                            {
+                                switch (this.polygonMode)
+                                {
+                                    case PolygonMode.InsidePolygon:
+                                        while (!path.IsVisible(x, y))
+                                        {
+                                            x = drawLeft + (float)random.NextDouble() * drawWidth;
+                                            y = drawTop + (float)random.NextDouble() * drawHeight;
+                                        }
+                                        break;
+                                    case PolygonMode.OutsidePolygon:
+                                        while (path.IsVisible(x, y))
+                                        {
+                                            x = drawLeft + (float)random.NextDouble() * drawWidth;
+                                            y = drawTop + (float)random.NextDouble() * drawHeight;
+                                        }
+                                        break;
+                                }
+                            }
+                            x -= width / 2;
+                            y -= height / 2;
+                        }
                     }
 
-                    if (this.avoidClipping && !(this.polyLineObject is PolyLineObject))
+                    if (this.avoidClipping && this.polyLineObject == null)
                     {
                         if (x + width > drawLeft + drawWidth)
                         {
@@ -530,6 +626,8 @@ namespace ParticleSystemFRNet
                 writer.WriteValue("Image", Image);
             if (PolyLineObject != c.PolyLineObject)
                 writer.WriteRef("PolyLineObject", PolyLineObject);
+            if (PolygonMode != c.PolygonMode)
+                writer.WriteValue("PolygonMode", PolygonMode);
         }
 
         ///<inheritdoc/>
@@ -629,6 +727,7 @@ namespace ParticleSystemFRNet
             this.adjustableOpacity = true;
             this.dataColumn = "";
             this.image = Properties.Resources.ParticleSystemIcon.Clone() as Image;
+            this.PolygonMode = PolygonMode.InsidePolygon;
         }
     }
 }
