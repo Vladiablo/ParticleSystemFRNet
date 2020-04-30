@@ -382,6 +382,11 @@ namespace ParticleSystemFRNet
         {
             base.Draw(e);
 
+            if (this.polyLineObject is PolygonObject)
+            {
+                this.polyLineObject.Draw(e);
+            }
+
             Graphics g = e.Graphics;
             if (Image == null)
                 Image = Properties.Resources.ParticleSystemIcon;
