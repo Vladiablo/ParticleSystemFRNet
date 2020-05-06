@@ -380,12 +380,15 @@ namespace ParticleSystemFRNet
         ///<inheritdoc/>
         public override void Draw(FRPaintEventArgs e)
         {
-            base.Draw(e);
-
-            if (this.polyLineObject is PolygonObject)
+            if (this.polyLineObject != null)
             {
                 this.polyLineObject.Draw(e);
             }
+            else
+            {
+                base.Draw(e);
+            }
+
 
             Graphics g = e.Graphics;
             if (Image == null)
@@ -438,7 +441,7 @@ namespace ParticleSystemFRNet
                 PointF[] points = (this.polyLineObject is PolyLineObject) ? (path.PathPoints) : (null);
                 PolyPointCollection polyPoints = (this.polyLineObject is PolyLineObject) ? (polyLineObject.Points) : (null);
                 PointF absPolyLineZero = (this.polyLineObject is PolyLineObject && polyPoints.Count > 0) ? (new PointF(points[0].X / e.ScaleX- polyPoints[0].X, points[0].Y / e.ScaleY - polyPoints[0].Y)) : (new PointF(0.0f, 0.0f));
-
+                //long before = System.Diagnostics.Stopwatch.GetTimestamp();
                 for (int i = 0; i < particlesCount; i++)
                 {
                     
@@ -583,7 +586,9 @@ namespace ParticleSystemFRNet
                         x, y,
                         width, height);
                 }
+                //long after = System.Diagnostics.Stopwatch.GetTimestamp();
 
+                //System.Diagnostics.Debug.WriteLine($"Time: {(double)(after - before) / TimeSpan.TicksPerMillisecond} ms.");
             }
             finally
             {
