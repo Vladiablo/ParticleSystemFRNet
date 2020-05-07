@@ -264,6 +264,7 @@ namespace ParticleSystemFRNet
                 if (this.polyLineObject != null)
                 {
                     this.polyLineObject.Disposed += (sender, e) => { this.polyLineObject = null; };
+                    this.RecalculatePosition();
                 }
             }
         }
@@ -332,6 +333,21 @@ namespace ParticleSystemFRNet
             this.opacityImageCacheReady = false;
         }
 
+        /// <summary>
+        /// Sets position of the ParticleSystem Object to polyLineObject position.
+        /// </summary>
+        private void RecalculatePosition()
+        {
+            if(this.polyLineObject != null)
+            {
+                this.Parent = this.polyLineObject.Parent;
+                this.Left = this.polyLineObject.Left;
+                this.Top = this.polyLineObject.Top;
+                this.Width = this.polyLineObject.Width;
+                this.Height = this.polyLineObject.Height;
+            }
+        }
+
         #endregion
 
         #region Protected Methods
@@ -380,6 +396,8 @@ namespace ParticleSystemFRNet
         ///<inheritdoc/>
         public override void Draw(FRPaintEventArgs e)
         {
+            
+
             if (this.polyLineObject != null)
             {
                 this.polyLineObject.Draw(e);
@@ -393,7 +411,7 @@ namespace ParticleSystemFRNet
             Graphics g = e.Graphics;
             if (Image == null)
                 Image = Properties.Resources.ParticleSystemIcon;
-            
+
             float drawLeft = 0.0f;
             float drawTop = 0.0f;
             float drawWidth = 0.0f;
